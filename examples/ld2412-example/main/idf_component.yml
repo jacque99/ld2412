@@ -1,0 +1,4 @@
+dependencies:
+  lhagva/ld2412:
+    version: "*"
+    override_path: '../../../'
