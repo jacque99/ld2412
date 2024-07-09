@@ -3,53 +3,69 @@
 #include "esp_log.h"
 #include <esp_timer.h>
 
+#include "uart_config.h"
 #include "ld2412.h"
 
 static const char *TAG = "LD2412DEMO";
 
+/* VARIABLES -----------------------------------------------------------------*/
+QueueHandle_t system_queue;
+char targetString[10] = {0};
+
+/* PRIVATE FUNCTIONS DECLARATION ---------------------------------------------*/
+static void display_time_task(void*param);
+
+/**
+ * @brief 	Display timer task. Necessary to run once every 10ms
+ *
+ */
+void display_time_task(void* param)
+{
+	// To keep track of the time the task last woke up
+  // TickType_t xLastWakeTime = xTaskGetTickCount();
+
+	system_packet system_buffer = {0};
+	while(1)
+	{
+    if(xQueueReceive(system_queue, (void * )&system_buffer, 2))
+    {
+      ESP_LOGI(TAG, "Time since boot: %lld us", esp_timer_get_time());
+      
+      ESP_LOGI(TAG, "[Target State]: %d", system_buffer.data[0]);
+      ESP_LOGI(TAG, "[Moving Target]: %d", system_buffer.data[1]);
+      ESP_LOGI(TAG, "[Stationary Target]: %d", system_buffer.data[3]);
+      // Displays received target distance data
+      // display(system_buffer.data[1]);
+    }
+
+    // Delays the task execution until a specific time
+    // This ensures the task wakes up periodically at least every 10 milliseconds
+    // vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(10) );
+	}
+}
+
 void app_main(void)
 {
-  // uint16_t target_state = 0;
-  // uint16_t moving_target_distance = 0;
-  // uint8_t moving_target_energy = 0;
-  // uint16_t stationary_target_distance = 0;
-  // uint8_t stationary_target_energy = 0;
-  uint8_t fw_version[6];
+  uart_config();
 
-  uart_config_t uart_config = {
-    .baud_rate = 115200,
-    .data_bits = UART_DATA_8_BITS,
-    .parity    = UART_PARITY_DISABLE,
-    .stop_bits = UART_STOP_BITS_1,
-    .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-    .source_clk = UART_SCLK_DEFAULT,
-  };
-  ESP_ERROR_CHECK(uart_driver_install(RADAR_UART_PORT_NUMBER, UART_SERIAL_BUF_SZIE * 2, 0, 0, NULL, 0));
-  ESP_ERROR_CHECK(uart_param_config(RADAR_UART_PORT_NUMBER, &uart_config));
-  ESP_ERROR_CHECK(uart_set_pin(RADAR_UART_PORT_NUMBER, 5, 4, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+  xTaskCreate(uart_event_task, "uart_event_task", 10000, NULL, 4, NULL);
+  xTaskCreate(uart_reception_task, "uart_rx_task", 10000, NULL, 4, NULL);
+  // xTaskCreate(uart_transmission_task, "uart_tx_task", 1024*2, NULL, 4, NULL);
+  xTaskCreate(display_time_task, "display_time_task", 10000, NULL, 4, NULL);
 
-  ld2412_config_t config = {
-    .uart_port = RADAR_UART_PORT_NUMBER,
-    .last_ts = esp_timer_get_time(),
-  };
-  ld2412_handle_t handle = NULL;
-  ESP_ERROR_CHECK(ld2412_init(&config, &handle));
-
-  xTaskCreate(receive_task, "uart_rx_task", 1024*2, NULL, 4, NULL);
-
-  memset(fw_version, 0, sizeof(fw_version));
+  // memset(fw_version, 0, sizeof(fw_version));
   
-  if (!(read_firmware_version(handle, fw_version))) {
-    ESP_LOGE(TAG, "Error getting FW Version message:");
+  // if (!(read_firmware_version(handle, fw_version))) {
+  //   ESP_LOGE(TAG, "Error getting FW Version message:");
 
-    // ESP_LOGE(TAG, "Error getting FW Version message: 0x%x", err);
-  }
+  //   // ESP_LOGE(TAG, "Error getting FW Version message: 0x%x", err);
+  // }
 
-  // Radar ACK (success)
-  // Command word: 2 bytes For example 0x01A0
-  // Return value: 2-bytes ACK status (0 successful, 1 failed) + 2-bytes firmware type (0x2412)+2-bytes major
-  //                version number+4-bytes minor version number
-  ESP_LOGI(TAG, "LD2412 firmware type: %02X.%02X", fw_version[5], fw_version[4]);
-  ESP_LOGI(TAG, "LD2412 firmware version: V%02X.%02X.%02X.%02X.%02X.%02X", fw_version[7], fw_version[6], fw_version[11], fw_version[10], fw_version[9], fw_version[8]);
+  // // Radar ACK (success)
+  // // Command word: 2 bytes For example 0x01A0
+  // // Return value: 2-bytes ACK status (0 successful, 1 failed) + 2-bytes firmware type (0x2412)+2-bytes major
+  // //                version number+4-bytes minor version number
+  // ESP_LOGI(TAG, "LD2412 firmware type: %02X.%02X", fw_version[5], fw_version[4]);
+  // ESP_LOGI(TAG, "LD2412 firmware version: V%02X.%02X.%02X.%02X.%02X.%02X", fw_version[7], fw_version[6], fw_version[11], fw_version[10], fw_version[9], fw_version[8]);
   
 }
