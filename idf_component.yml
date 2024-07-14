@@ -1,0 +1,11 @@
+## IDF Component Manager Manifest File
+dependencies:
+  ## Required IDF version
+  idf:
+    version: ">=4.1.0"
+description: LD2412 Presense detector driver
+documentation: https://github.com/jacque99/ld2412/tree/main/README.md
+maintainers:
+  - "Lhagva <jantsan.d@gmail.com>"
+repository: https://github.com/jacque99/ld2412
+version: 0.0.1

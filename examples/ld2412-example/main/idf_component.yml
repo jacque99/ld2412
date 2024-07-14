@@ -1,4 +1,5 @@
 dependencies:
+  espressif/button: "=*"
   lhagva/ld2412:
     version: "*"
     override_path: '../../../'
