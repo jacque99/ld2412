@@ -7,63 +7,52 @@
 #include "uart_config.h"
 #include "ld2412.h"
 
-static const char *TAG = "LD2412DEBUG";
+static const char *TAG = "LD2412";
 
-void send_frame_header() {
+static bool current_engineering_mode = false;
+
+void send_command(uint8_t *command_str, uint8_t *command_val, int command_val_len) {
+  // Initialize frame length Frame header 4 bytes + intra frame length 2 bytes
+  int frame_data_index = 0;          
+  int intra_frame_data_length = 0;          
+  
+  // Frame header bytes
   hUart.uart_txBuffer[0] = 0xFD;
   hUart.uart_txBuffer[1] = 0xFC;
   hUart.uart_txBuffer[2] = 0xFB;
   hUart.uart_txBuffer[3] = 0xFA;
-  hUart.uart_txPacketSize = 4; 
-  xQueueSendToBack(uartTx_queue, &hUart, portMAX_DELAY);
-  // uint8_t frame_header[4] = {0xFD, 0xFC, 0xFB, 0xFA};
-  // uart_write_bytes(uart_port, frame_header, sizeof(frame_header));
-}
+  frame_data_index += 4;
 
-void send_frame_end() {
-  hUart.uart_txBuffer[0] = 0x04;
-  hUart.uart_txBuffer[1] = 0x03;
-  hUart.uart_txBuffer[2] = 0x02;
-  hUart.uart_txBuffer[3] = 0x01;
-  hUart.uart_txPacketSize = 4; 
-  xQueueSendToBack(uartTx_queue, &hUart, portMAX_DELAY);
-  // uint8_t frame_end[4] = {0x04, 0x03, 0x02, 0x01};
-  // uart_write_bytes(uart_port, frame_end, sizeof(frame_end));
-}
-
-void send_command(uint8_t *command_str, uint8_t *command_val, int command_val_len) {
-  int intra_frame_data_length = 2;
-
-  send_frame_header();
-
-  uint8_t intra_frame_data[RADAR_MAX_FRAME_LENGTH] = {};
-  ESP_LOGI(TAG, "command_val: '%d.%d'", command_val[0], command_val[1]);
-
-  if (command_val[0] != '\0') 
-    intra_frame_data_length += command_val_len;
-
-  // intra frame data length
-  intra_frame_data[0] = (uint8_t)(intra_frame_data_length & 0xFF);
-  intra_frame_data[1] = (uint8_t)((intra_frame_data_length >> 8) & 0xFF);
-  // // command word bytes
-  intra_frame_data[2] = command_str[0];
-  intra_frame_data[3] = command_str[1];
+  // intra frame data length bytes
+  hUart.uart_txBuffer[4] = 0;
+  hUart.uart_txBuffer[5] = 0;
+  frame_data_index += 2;
+  // command word bytes
+  hUart.uart_txBuffer[6] = command_str[0];
+  hUart.uart_txBuffer[7] = command_str[1];
+  frame_data_index += 2;
+  intra_frame_data_length += 2;
   // command value bytes
   if (command_val[0] != '\0') {
-    for (int i = 4; i < command_val_len+4; i++)
+    for (int i = 0; i < command_val_len; i++)
     {
-      intra_frame_data[i] = command_val[i];
+      hUart.uart_txBuffer[frame_data_index+i] = command_val[i];
+      frame_data_index++;
+      intra_frame_data_length++;
     }
   }
-  ESP_LOGI(TAG, "intra_frame_data_length: '%d'", intra_frame_data_length);
-  
-  hUart.uart_txPacketSize = sizeof(intra_frame_data);
-  memcpy(hUart.uart_txBuffer, intra_frame_data, sizeof(intra_frame_data)); 
-  xQueueSendToBack(uartTx_queue, &hUart, portMAX_DELAY);
-  // int tx_bytes = uart_write_bytes(handle->config.uart_port, intra_frame_data, intra_frame_data_length+2);
-  // ESP_LOGI(TAG, "TX bytes: '%d'", tx_bytes);
+  // intra frame data length
+  hUart.uart_txBuffer[4] = (uint8_t)(intra_frame_data_length & 0xFF);
+  hUart.uart_txBuffer[5] = (uint8_t)((intra_frame_data_length >> 8) & 0xFF);
 
-  send_frame_end();
+  hUart.uart_txBuffer[frame_data_index] = 0x04;
+  hUart.uart_txBuffer[frame_data_index+1] = 0x03;
+  hUart.uart_txBuffer[frame_data_index+2] = 0x02;
+  hUart.uart_txBuffer[frame_data_index+3] = 0x01;
+  frame_data_index += 4;
+
+  hUart.uart_txPacketSize = frame_data_index;
+  xQueueSendToBack(uartTx_queue, &hUart, portMAX_DELAY);
 }
 
 void control_config_mode(bool enable) {
@@ -71,14 +60,14 @@ void control_config_mode(bool enable) {
   uint8_t cmd_val[2] = {};
   int cmd_val_len = 2;
   if (enable) {
-    // Enable Configuration Command 2.2.1
+    // 2.2.1 Enable Configuration Command
     // Intra-frame data length 2 bytes, Value is 0x04
     // Command word (2 bytes) 0x00FF
     // Command value (2 bytes) 0x0001
     cmd_val[0] = 0x01;
     cmd_val[1] = 0x0;
   } else {
-    // End Command Configuration 2.2.2 
+    // 2.2.2 End Command Configuration
     // Intra-frame data length = 2 bytes, Value is 0x02
     // Command word (2 bytes) 0x00FE
     // Command value None
@@ -87,37 +76,63 @@ void control_config_mode(bool enable) {
   }
   send_command(cmd, cmd_val, cmd_val_len);
 }
-
-// int16_t ld2412_parse_target_frame(const uint8_t* frame, uint8_t* target_state) {
-//   ESP_LOGI(TAG, "target frame: '%02X'", frame[0]);
-//   if (frame[6] == 0x02 && frame[7] == 0xAA && frame[17] == 0x55 && frame[18] == 0x00) {
-//     // Normal mode target data 
-//     *target_state = 8;//(uint8_t)frame[8];
-//     return (frame[3] + (frame[4] << 8));
-//   } else if (frame[6] == 0x01 && frame[7] == 0xAA && frame[45] == 0x55 && frame[46] == 0x00) {
-//     // Engineering mode target data 
-//     *target_state = 9; //(uint8_t)frame[8];
-//     return (frame[3] + (frame[4] << 8));
-//   }
-//   return -1; // Return -1.0 if target distance value not found
-// }
-
-// bool read_firmware_version(ld2412_handle_t handle, uint8_t *out_buf) {
-
-//   if (control_config_mode(handle, true) == 6) {
-//     uint8_t cmd[2] = {0xA0, 0x00};
-//     uint8_t cmd_val[2] = {};
   
-//     ESP_LOGI(TAG, "ENTERED COMMAND MODE");
+void ld2412_parse_command_ack_frame(const uint8_t* frame_data) {
+  // int intra_frame_data_length = frame_data[4] + (frame_data[5] << 8);
 
-//     if (send_command(handle, cmd, cmd_val, 0) == 4) {
-//       ESP_LOGI(TAG, "SENT FIRMWARE READ COMMAND");
-//       if (control_config_mode(handle, false) == 4) {
-//         ESP_LOGI(TAG, "LEAVED COMMAND MODE");
-//         return true;
-//       }
-//     }
-//   }
-//   control_config_mode(handle, false);
-//   return false;
-// }
+  // Read Firmware Version 
+  // Command word: 2 bytes 0x01A0
+  // Return value: 2-bytes ACK status (0 successful, 1 failed) + 2-bytes firmware type (0x2412)+2-bytes major
+  //                version number+4-bytes minor version number
+  if (frame_data[6] == 0xA0 && frame_data[7] == 0x01 && frame_data[8] == 0x0 && frame_data[9] == 0x0) {
+    ESP_LOGI(TAG, "LD2412 firmware type: %02X.%02X", frame_data[11], frame_data[10]);
+    ESP_LOGI(TAG, "LD2412 firmware version: V%02X.%02X.%02X.%02X.%02X.%02X", frame_data[13], frame_data[12], frame_data[17], frame_data[16], frame_data[15], frame_data[14]);
+  } 
+}
+
+void read_firmware_version(void) {
+
+  // 2.2.15 Read firmware version command
+  // Command word (2 bytes) 0x00A0
+  // Command value None
+  uint8_t cmd[2] = {0xA0, 0x00};
+  uint8_t cmd_val[2] = {};
+
+  control_config_mode(true);
+  vTaskDelay(150/portTICK_PERIOD_MS);
+
+  // ESP_LOGI(TAG, "Time sent firmware read command: %lld us", esp_timer_get_time());
+  send_command(cmd, cmd_val, 0);
+  vTaskDelay(180/portTICK_PERIOD_MS);
+  
+  control_config_mode(false);
+  vTaskDelay(150/portTICK_PERIOD_MS);
+}
+
+void control_engineering_mode(void) {
+
+  // 2.2.6 Close engineering mode command
+  // Command word (2 bytes) 0x0063
+  // Command value None
+  uint8_t cmd[2] = {0x63, 0x00};
+  uint8_t cmd_val[2] = {};
+
+  current_engineering_mode = !current_engineering_mode;
+
+  if (current_engineering_mode) {
+    // 2.2.5 Enable engineering mode command
+    // Command word (2 bytes) 0x0062
+    // Command value None
+    cmd[0] = 0x62;
+  }
+
+  control_config_mode(true);
+  vTaskDelay(150/portTICK_PERIOD_MS);
+
+  // ESP_LOGI(TAG, "Time sent engineering mode control: %lld us", esp_timer_get_time());
+  send_command(cmd, cmd_val, 0);
+  vTaskDelay(200/portTICK_PERIOD_MS);
+  
+  control_config_mode(false);
+  vTaskDelay(150/portTICK_PERIOD_MS);
+}

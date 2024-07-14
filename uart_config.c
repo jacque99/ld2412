@@ -1,4 +1,4 @@
-/* UART asynchronous example, that uses separate RX and TX tasks
+/* UART UART Events example, and separate Reception and Transmit tasks
 
    This example code is in the Public Domain (or CC0 licensed, at your option.)
 
@@ -10,6 +10,7 @@
 #include "freertos/task.h"
 #include "esp_system.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "driver/uart.h"
 #include "string.h"
 #include "driver/gpio.h"
@@ -25,6 +26,7 @@ QueueHandle_t uartRxStore_queue;
 QueueHandle_t uartTx_queue;
 
 uartHandler_t hUart;
+
 /* FUNCTION PROTOTYPES -------------------------------------------------------*/
 /**
  * @brief initialize UART handler
@@ -69,10 +71,9 @@ void uart_config(void) {
 void uart_transmission_task(void *pvParameters) {
 	while(1) {
 		if(xQueueReceive(uartTx_queue, (void *)&hUart, portMAX_DELAY)) {
-
 			uart_write_bytes(UART_PORT_NUMBER, hUart.uart_txBuffer, hUart.uart_txPacketSize);
 
-			vTaskDelay(150/portTICK_PERIOD_MS);
+			vTaskDelay(100/portTICK_PERIOD_MS);
 		}
 	}
 }
@@ -91,20 +92,14 @@ void uart_reception_task(void *pvParameters) {
   for(;;) {
     // Waiting for UART packet to get received.
     if(xQueueReceive(uartRxStore_queue, (void * )&uartHandler, portMAX_DELAY)) {
-      ESP_LOGI(TAG, "Packet size: '%d'", hUart.uart_rxPacketSize);
       // int intra_frame_data_length = hUart.uart_rxBuffer[4] + (hUart.uart_rxBuffer[5] << 8);
-      for (int i=0; i<hUart.uart_rxPacketSize; i++) {
-        ESP_LOGI(TAG, "Frame data: '%d.%02X'", i, hUart.uart_rxBuffer[i]);
-      }
       // Target Data Header
       if ((hUart.uart_rxBuffer[0] == 0xF4) && (hUart.uart_rxBuffer[1] == 0xF3) && (hUart.uart_rxBuffer[2] == 0xF2) && (hUart.uart_rxBuffer[3] == 0xF1) &&
-        // Target Data End
-        (hUart.uart_rxBuffer[hUart.uart_rxPacketSize-4] == 0xF8) && (hUart.uart_rxBuffer[hUart.uart_rxPacketSize-3] == 0xF7) && (hUart.uart_rxBuffer[hUart.uart_rxPacketSize-2] == 0xF6) && (hUart.uart_rxBuffer[hUart.uart_rxPacketSize-1] == 0xF5))
+      // Target Data End
+      (hUart.uart_rxBuffer[hUart.uart_rxPacketSize-4] == 0xF8) && (hUart.uart_rxBuffer[hUart.uart_rxPacketSize-3] == 0xF7) && (hUart.uart_rxBuffer[hUart.uart_rxPacketSize-2] == 0xF6) && (hUart.uart_rxBuffer[hUart.uart_rxPacketSize-1] == 0xF5))
       {
-        ESP_LOGI(TAG, "TARGET DATA Frame header: '%02X'", hUart.uart_rxBuffer[0]);
         if (hUart.uart_rxBuffer[6] == 0x02 && hUart.uart_rxBuffer[7] == 0xAA && hUart.uart_rxBuffer[15] == 0x55) { //&& hUart.uart_rxBuffer[16] == 0x00) { // DL 24.07.08 sometimes 0xF3 comes instead of check byte 0x00 
           // Normal mode target data 
-          // Read after Frame Header 4 bytes + Intra frame data length 2 bytes = 6
           system_buffer.data[0] = hUart.uart_rxBuffer[8];                                     // Target state 
           system_buffer.data[1] = hUart.uart_rxBuffer[9] + (hUart.uart_rxBuffer[10] << 8);    // Moving target 
           system_buffer.data[2] = hUart.uart_rxBuffer[11];                                    // Moving target energy 
@@ -114,80 +109,26 @@ void uart_reception_task(void *pvParameters) {
           system_buffer.packet_size = 7;
           xQueueSendToBack(system_queue, &system_buffer, portMAX_DELAY);
 
-        } else if (hUart.uart_rxBuffer[6] == 0x01 && hUart.uart_rxBuffer[7] == 0xAA && hUart.uart_rxBuffer[45] == 0x55 && hUart.uart_rxBuffer[46] == 0x00) {
-          // Engineering mode target data 
-          // Read after Frame Header 4 bytes + Intra frame data length 2 bytes = 6
-          system_buffer.data[0] = hUart.uart_rxBuffer[8];                                     // Target state 
-          system_buffer.data[1] = hUart.uart_rxBuffer[9] + (hUart.uart_rxBuffer[10] << 8);    // Moving target 
-          system_buffer.data[2] = hUart.uart_rxBuffer[11];                                    // Moving target energy 
-          system_buffer.data[3] = hUart.uart_rxBuffer[12] + (hUart.uart_rxBuffer[13] << 8);   // Stationary target 
-          system_buffer.data[4] = hUart.uart_rxBuffer[14];                                    // Stationary target energy
-          
-          system_buffer.packet_size = 47;
-          xQueueSendToBack(system_queue, &system_buffer, portMAX_DELAY);
+        } else if (hUart.uart_rxBuffer[6] == 0x01 && hUart.uart_rxBuffer[7] == 0xAA) { //&& hUart.uart_rxBuffer[45] == 0x55 && hUart.uart_rxBuffer[46] == 0x00) {
+          // Engineering mode target data
+          // TO DO Parse Engineering mode target data
+
+          // system_buffer.packet_size = 47;
+          // xQueueSendToBack(system_queue, &system_buffer, portMAX_DELAY);
         }
       } else 
-      // Comamnd Data Header
+      // Command Data Header
       if ((hUart.uart_rxBuffer[0] == 0xFD) && (hUart.uart_rxBuffer[1] == 0xFC) && (hUart.uart_rxBuffer[2] == 0xFB) && (hUart.uart_rxBuffer[3] == 0xFA) &&
-        // Comamnd Data End
-        (hUart.uart_rxBuffer[hUart.uart_rxPacketSize-4] == 0x04) && (hUart.uart_rxBuffer[hUart.uart_rxPacketSize-3] == 0x03) && (hUart.uart_rxBuffer[hUart.uart_rxPacketSize-2] == 0x02) && (hUart.uart_rxBuffer[hUart.uart_rxPacketSize-1] == 0x01))
+      // Comamnd Data End
+      (hUart.uart_rxBuffer[hUart.uart_rxPacketSize-4] == 0x04) && (hUart.uart_rxBuffer[hUart.uart_rxPacketSize-3] == 0x03) && (hUart.uart_rxBuffer[hUart.uart_rxPacketSize-2] == 0x02) && (hUart.uart_rxBuffer[hUart.uart_rxPacketSize-1] == 0x01))
       {
-        // Parse command frame data with ACK
-        // ld2412_parse_command_frame(hUart.uart_rxBuffer);
+        // Parse ACK command frame data
+        // ESP_LOGI(TAG, "Time ACK data received: %lld us", esp_timer_get_time());
+        ld2412_parse_command_ack_frame(hUart.uart_rxBuffer);
       }
     }
   }
 }
-
-// static void receive_task(void *arg) {
-
-//   uint8_t* rxbuf = (uint8_t*) malloc(UART_BUF_SZIE);
-//   // Check for available data
-//   // ESP_ERROR_CHECK(uart_get_buffered_data_len(handle->config.uart_port, (size_t*)&bytes_available));
-
-//   while (1) {
-//     // Read data from serial buffer
-//     const int rx_bytes = uart_read_bytes(UART_PORT_NUMBER, rxbuf, 
-//                               128, 1000 / portTICK_PERIOD_MS);
-
-//     ESP_LOGI(TAG, "Frame length: '%d'", rx_bytes);
-
-//     if (rx_bytes > 0) {
-//       rxbuf[rx_bytes] = 0;
-//       int intra_frame_data_length = rxbuf[4] + (rxbuf[5] << 8);
-//       ESP_LOGI(TAG, "Intra frame data length: '%d'", intra_frame_data_length);
-
-//       if ((rxbuf[0] == 0xF4) && (rxbuf[1] == 0xF3) && (rxbuf[2] == 0xF2) && (rxbuf[3] == 0xF1) &&                                      // Target Data Header  
-//         (rxbuf[rx_bytes-4] == 0xF8) && (rxbuf[rx_bytes-3] == 0xF7) && (rxbuf[rx_bytes-2] == 0xF6) && (rxbuf[rx_bytes-1] == 0xF5))      // Target Data End
-//       {
-//         ESP_LOGI(TAG, "TARGET DATA Frame header: '%d'", rxbuf[0]);
-//         for (int i=0; i<intra_frame_data_length; i++) {
-//           out_buf[i] = rxbuf[i+6];                                                                                // Read after Frame Header 4 bytes + Intra frame data length 2 bytes = 6
-//           // ESP_LOGI(TAG, "Intra frame data: '%d.%02X'", i, out_buf[i]);
-//         }
-
-//         ESP_LOGI(TAG, "Data type: %02X", out_buf[0]);
-//         ESP_LOGI(TAG, "Target state: %02X", out_buf[2]);
-//         ESP_LOGI(TAG, "Moving target [cm]: %d", out_buf[3] + (out_buf[4] << 8));
-//         ESP_LOGI(TAG, "Moving target energy: %d", out_buf[5]);
-//         ESP_LOGI(TAG, "Stationary target [cm]: %d", out_buf[6] + (out_buf[7] << 8));
-//         ESP_LOGI(TAG, "Stationary target energy: %d", out_buf[8]);
-//         ESP_LOGI(TAG, "End byte: %02X", out_buf[9]);
-
-//       }
-//       else if ((rxbuf[0] == 0xFD) && (rxbuf[1] == 0xFC) && (rxbuf[2] == 0xFB) && (rxbuf[3] == 0xFA) &&                                 // Radar ACK Header
-//         (rxbuf[rx_bytes-4] == 0x04) && (rxbuf[rx_bytes-3] == 0x03) && (rxbuf[rx_bytes-2] == 0x02) && (rxbuf[rx_bytes-1] == 0x01))      // Radar ACK End
-//       {
-//         ESP_LOGI(TAG, "ACK DATA Frame header: '%d'", rxbuf[0]);
-//         for (int i=0; i<intra_frame_data_length; i++) {
-//           out_buf[i] = rxbuf[i+6];                                                                                // Read after Frame Header 4 bytes + Intra frame data length 2 bytes = 6
-//           ESP_LOGI(TAG, "Intra frame data: '%d.%02X'", i, out_buf[i]);
-//         }
-//       }
-//     }
-//   }
-//   free(rxbuf);
-// }
 
 /**
  * @brief UART event task. Here UART RX callback takes place. This task should be started in the main
@@ -211,6 +152,7 @@ void uart_event_task(void *pvParameters) {
       case UART_DATA:
         uart_read_bytes(UART_PORT_NUMBER, hUart.uart_rxBuffer, event.size, portMAX_DELAY);
 
+        ESP_LOGI(TAG, "Event size: '%d'", event.size);
         hUart.uart_rxPacketSize = event.size;
         hUart.uart_status.flags.rxPacket = 1;
 

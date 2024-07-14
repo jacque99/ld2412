@@ -17,28 +17,28 @@ extern "C" {
 #endif
 
 /* MACROS --------------------------------------------------------------------*/
-#define RADAR_MAX_FRAME_LENGTH 	        40
+#define RADAR_MAX_FRAME_LENGTH 	        41
 
 /* FUNCTIONS DECLARATION -----------------------------------------------------*/
-
-void send_frame_header(void);
-void send_frame_end(void);
-void control_config_mode(bool enable);
 void send_command(uint8_t *command_str, uint8_t *command_val, int command_val_len);
+void control_config_mode(bool enable);
+void control_engineering_mode(void);
 
 /**
- * @brief Extracts the target distance value from the provided frame data and also identifies the target state.
+ * @brief Send command for read firmware version from Radar
  *
- * This function extracts the distance value from the target frame and identifies the target state.
- * The target distance_value is a integer value representing the distance.
- *
- * @param frame The input frame data from which the distance is to be extracted.
- * @param target_state The integer where the target state will be stored.
- *
- * @return The extracted distance value as a number in cm, or -1 if the distance value is not found.
+ * @param void
  *
  */
-// int16_t ld2412_parse_target_frame(const uint8_t* frame, uint8_t* target_state);
+void read_firmware_version(void);
+
+/**
+ * @brief Parse command ACK frame received from Radar
+ *
+ * @param frame_data The input frame data from which the command ACK to be extracted.
+ *
+ */
+void ld2412_parse_command_ack_frame(const uint8_t* frame_data);
 
 #ifdef __cplusplus
 }
