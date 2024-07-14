@@ -1,4 +1,4 @@
-/* UART UART Events example, and separate Reception and Transmit tasks
+/* UART UART Events task, and separate Reception and Transmit tasks
 
    This example code is in the Public Domain (or CC0 licensed, at your option.)
 
@@ -36,6 +36,12 @@ void uart_buffer_init(void) {
 	memset(&hUart, 0,sizeof(uartHandler_t));
 }
 
+/**
+ * @brief configure UART
+ * Assign UART PORT and set uartRx_queue as UART receive event queue handle
+ * Configure UART parameters defined in uart_config
+ * Define pin numbers for UART PORT  
+ */
 void uart_config(void) {
   const uart_config_t uart_config =
   {

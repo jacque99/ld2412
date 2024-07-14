@@ -1,4 +1,4 @@
-# HLK-LD2412 24GHz Radar Presense Detector UART driver
+# HLK-LD2412 mmWave Radar Presense Detector UART driver
 
 This repository contains an ESP-IDF driver for a LD242 Presense detector connected over UART.
 
@@ -6,15 +6,16 @@ This repository contains an ESP-IDF driver for a LD242 Presense detector connect
 
 Run the following command in your ESP-IDF project to install this component:
 ```bash
-idf.py add-dependency "lhagva/ld2412"
+idf.py add-dependency "jacque99/ld2412"
 ```
 
 ## Example
 
 To run the provided example, create it as follows:
+The LD2412 sends target distance periodically, to make it human readable display_time_task() shows one of 6 datas. 
 
 ```bash
-idf.py create-project-from-example "lhagva/ld2412:ld2412-example"
+idf.py create-project-from-example "jacque99/ld2412:ld2412-example"
 ```
 
 Then build as usual:
@@ -28,7 +29,15 @@ And flash it to the board:
 idf.py -p PORT flash monitor
 ```
 
-The example uses GPIOs 4 and 5 for TX and RX, respectively.
+The example uses GPIOs 4 and 5 for UART RX and TX, respectively.
+
+## Wiring
+
+ESP32 | LD2412
+3.3V <-> VCC
+GND  <-> GND
+TX   <-> RX
+RX   <-> TX
 
 ## License
 

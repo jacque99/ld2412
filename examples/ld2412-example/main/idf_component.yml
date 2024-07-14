@@ -1,5 +1,5 @@
 dependencies:
   espressif/button: "=*"
-  lhagva/ld2412:
+  jacque99/ld2412:
     version: "*"
     override_path: '../../../'

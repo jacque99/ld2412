@@ -4,7 +4,8 @@ dependencies:
   idf:
     version: ">=4.1.0"
 description: LD2412 Presense detector driver
-documentation: https://github.com/jacque99/ld2412/tree/main/README.md
+documentation: https://github.com/jacque99/ld2412/blob/master/README.md
+issues: https://github.com/jacque99/ld2412/issues
 maintainers:
   - "Lhagva <jantsan.d@gmail.com>"
 repository: https://github.com/jacque99/ld2412

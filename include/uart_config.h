@@ -1,11 +1,16 @@
 /**
  ******************************************************************************
  * @file    		:  uart_config.h
- * @author  		:  
+ * @author  		:  Lhagva
  * @version 		:  v.1.0
  * @date    		:  Jul 3, 2024
- * @brief   		:
+ * @brief   		:  UART events and UART RX, TX tasks
  *
+ * UART events UART_DATA reads serial buffer and send data to queue uartRxStore_queue.
+ * uart_reception_task starts when uartRxStore_queue is filled. It parses recieved frame data and 
+ * send parsed data to system_queue for further processing.
+ * uart_transmission_task starts when uartTx_queue is filled, and send data to serial.   
+ * 
  ******************************************************************************/
 
 #ifndef UART_CONFIG_H_
@@ -63,10 +68,39 @@ extern QueueHandle_t 			uartTx_queue;
 extern uartHandler_t	 		hUart;
 
 /* FUNCTIONS DECLARATION -----------------------------------------------------*/
+/**
+ * @brief initialize UART handler
+ *
+ */
 void 	uart_buffer_init		(void);
+
+/**
+ * @brief configure UART
+ * Assign UART PORT and set uartRx_queue as UART receive event queue handle
+ * Configure UART parameters defined in uart_config
+ * Define pin numbers for UART PORT  
+ */
 void 	uart_config				(void);
+
+/**
+ * @brief UART event task. Here UART RX callback takes place. This task should be started in the main
+ *
+ * @param pvParameters
+ */
 void 	uart_event_task			(void *pvParameters);
+
+/**
+ * @brief UART TX function. The transmission starts once the related queue is filled.
+ *
+ * @param pvParameters
+ */
 void 	uart_transmission_task	(void *pvParameters);
+
+/**
+ * @brief UART RX function. The reception starts once the related queue is filled.
+ *
+ * @param pvParameters
+ */
 void 	uart_reception_task	    (void *pvParameters);
 
 #endif /* UART_CONFIG_H_ */
