@@ -52,27 +52,18 @@ void send_command(uint8_t *command_str, uint8_t *command_val, int command_val_le
   frame_data_index += 4;
 
   hUart.uart_txPacketSize = frame_data_index;
-  xQueueSendToBack(uartTx_queue, &hUart, portMAX_DELAY);
+    xQueueSendToBack(uartTx_queue, &hUart, portMAX_DELAY);
 }
 
 void control_config_mode(bool enable) {
-  uint8_t cmd[2] = {0xFF, 0x0};
+  // Command word (2 bytes) 0x00FF or 0x00FE
+  uint8_t cmd[2] = {enable ? 0xFF : 0xFE, 0x00};
   uint8_t cmd_val[2] = {};
-  int cmd_val_len = 2;
+  int cmd_val_len = enable ? 2 : 0;
   if (enable) {
-    // 2.2.1 Enable Configuration Command
-    // Intra-frame data length 2 bytes, Value is 0x04
-    // Command word (2 bytes) 0x00FF
     // Command value (2 bytes) 0x0001
     cmd_val[0] = 0x01;
     cmd_val[1] = 0x0;
-  } else {
-    // 2.2.2 End Command Configuration
-    // Intra-frame data length = 2 bytes, Value is 0x02
-    // Command word (2 bytes) 0x00FE
-    // Command value None
-    cmd[0] = 0xFE;
-    cmd_val_len = 0;
   }
   send_command(cmd, cmd_val, cmd_val_len);
 }
@@ -111,20 +102,12 @@ void read_firmware_version(void) {
 
 void control_engineering_mode(void) {
 
-  // 2.2.6 Close engineering mode command
-  // Command word (2 bytes) 0x0063
-  // Command value None
-  uint8_t cmd[2] = {0x63, 0x00};
-  uint8_t cmd_val[2] = {};
-
   current_engineering_mode = !current_engineering_mode;
 
-  if (current_engineering_mode) {
-    // 2.2.5 Enable engineering mode command
-    // Command word (2 bytes) 0x0062
-    // Command value None
-    cmd[0] = 0x62;
-  }
+  // Command word (2 bytes) 0x0062 or 0x0063
+  // Command value None
+  uint8_t cmd[2] = {current_engineering_mode ? 0x62 : 0x63, 0x00};
+  uint8_t cmd_val[2] = {};
 
   control_config_mode(true);
   vTaskDelay(150/portTICK_PERIOD_MS);

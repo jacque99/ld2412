@@ -33,11 +33,11 @@ The example uses GPIOs 4 and 5 for UART RX and TX, respectively.
 
 ## Wiring
 
-ESP32 | LD2412
-3.3V <-> VCC
-GND  <-> GND
-TX   <-> RX
-RX   <-> TX
+ESP32 | LD2412__
+3.3V <-> VCC__
+GND  <-> GND__
+TX   <-> RX__
+RX   <-> TX 
 
 ## License
 

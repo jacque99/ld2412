@@ -4,4 +4,6 @@ sdkconfig
 sdkconfig.old
 dependencies.lock
 dist
-doxygen
+Doxyfile
+docs
+.pre-commit-config.yaml
