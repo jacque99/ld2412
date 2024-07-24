@@ -35,7 +35,7 @@ void display_time_task(void* param)
       if (display_count == 6) {
         ESP_LOGI(TAG, "[Target State]: %d", system_buffer.data[0]);
         ESP_LOGI(TAG, "[Moving Target]: %d", system_buffer.data[1]);
-        ESP_LOGI(TAG, "[Stationary Target]: %d", system_buffer.data[3]);
+        ESP_LOGI(TAG, "[Stationary Target]: %d", system_buffer.data[2]);
         display_count = 0;
       }
       // Displays received target distance data

@@ -52,7 +52,7 @@ void send_command(uint8_t *command_str, uint8_t *command_val, int command_val_le
   frame_data_index += 4;
 
   hUart.uart_txPacketSize = frame_data_index;
-    xQueueSendToBack(uartTx_queue, &hUart, portMAX_DELAY);
+  xQueueSendToBack(uartTx_queue, &hUart, portMAX_DELAY);
 }
 
 void control_config_mode(bool enable) {
@@ -67,10 +67,25 @@ void control_config_mode(bool enable) {
   }
   send_command(cmd, cmd_val, cmd_val_len);
 }
-  
-void ld2412_parse_command_ack_frame(const uint8_t* frame_data) {
-  // int intra_frame_data_length = frame_data[4] + (frame_data[5] << 8);
 
+uint8_t ld2412_parse_target_data_frame(const uint8_t* frame_data, int16_t* movement_distance, int16_t* static_distance) {
+  if (frame_data[6] == 0x02 && frame_data[7] == 0xAA && frame_data[15] == 0x55 && frame_data[16] == 0x00) { // DL 24.07.08 sometimes value of 0xF1, 0x9, and 0x1 comes into 17th Check byte, instead of 0x00
+    // Normal mode target data 
+    *movement_distance = frame_data[9] + (frame_data[10] << 8);
+    // *movement_energy = frame_data[11];
+    *static_distance = frame_data[12] + (frame_data[13] << 8);
+    // *static_energy = frame_data[14];
+    return frame_data[8]; // Normal mode
+  } else if (frame_data[6] == 0x01 && frame_data[7] == 0xAA && frame_data[45] == 0x55 && frame_data[46] == 0x00) {
+    // Engineering mode target data
+    ESP_LOGI(TAG, "Engineering mode data length: %d", frame_data[4] + (frame_data[5] << 8));
+    // TO DO Parse Engineering mode target data
+    return frame_data[8]; // Engineering mode
+  } else {
+    return 100; // Return 100 if correct target frame not found
+  }
+}
+void ld2412_parse_command_ack_frame(const uint8_t* frame_data) {
   // Read Firmware Version 
   // Command word: 2 bytes 0x01A0
   // Return value: 2-bytes ACK status (0 successful, 1 failed) + 2-bytes firmware type (0x2412)+2-bytes major
@@ -79,11 +94,28 @@ void ld2412_parse_command_ack_frame(const uint8_t* frame_data) {
     ESP_LOGI(TAG, "LD2412 firmware type: %02X.%02X", frame_data[11], frame_data[10]);
     ESP_LOGI(TAG, "LD2412 firmware version: V%02X.%02X.%02X.%02X.%02X.%02X", frame_data[13], frame_data[12], frame_data[17], frame_data[16], frame_data[15], frame_data[14]);
   } 
+  
+  // Enable engineering mode 
+  // Command word: 2 bytes 0x0162
+  // Return value: 2-bytes ACK status (0 successful, 1 failed)
+  if (frame_data[6] == 0x62 && frame_data[7] == 0x01 && frame_data[8] == 0x0 && frame_data[9] == 0x0) {
+    ESP_LOGI(TAG, "Successfully Enabled engineering mode");
+  } 
+  // Close engineering mode 
+  // Command word: 2 bytes 0x0163
+  // Return value: 2-bytes ACK status (0 successful, 1 failed)
+  if (frame_data[6] == 0x63 && frame_data[7] == 0x01 && frame_data[8] == 0x0 && frame_data[9] == 0x0) {
+    ESP_LOGI(TAG, "Successfully Closed engineering mode");
+  } 
 }
 
+/**
+ * @brief Send command for read firmware version from Radar
+ *
+ * @param void
+ *
+ */
 void read_firmware_version(void) {
-
-  // 2.2.15 Read firmware version command
   // Command word (2 bytes) 0x00A0
   // Command value None
   uint8_t cmd[2] = {0xA0, 0x00};
@@ -100,6 +132,34 @@ void read_firmware_version(void) {
   vTaskDelay(150/portTICK_PERIOD_MS);
 }
 
+/**
+ * @brief Set the serial port baud rate
+ *
+ * @param void
+ *
+ */
+void set_baud_rate(void) {
+  // Command word (2 bytes) 0x00A1
+  // Command value (2 bytes) baud rate selection index 0x0004 for 57600, 0x0005 for 115200
+  uint8_t cmd[2] = {0xA1, 0x00};
+  uint8_t cmd_val[2] = {0x04, 0x00};
+
+  control_config_mode(true);
+  vTaskDelay(150/portTICK_PERIOD_MS);
+
+  send_command(cmd, cmd_val, 0);
+  vTaskDelay(180/portTICK_PERIOD_MS);
+  
+  control_config_mode(false);
+  vTaskDelay(150/portTICK_PERIOD_MS);
+}
+
+/**
+ * @brief Enable/Close engineering mode command
+ *
+ * @param void
+ *
+ */
 void control_engineering_mode(void) {
 
   current_engineering_mode = !current_engineering_mode;
@@ -112,7 +172,6 @@ void control_engineering_mode(void) {
   control_config_mode(true);
   vTaskDelay(150/portTICK_PERIOD_MS);
 
-  // ESP_LOGI(TAG, "Time sent engineering mode control: %lld us", esp_timer_get_time());
   send_command(cmd, cmd_val, 0);
   vTaskDelay(200/portTICK_PERIOD_MS);
   

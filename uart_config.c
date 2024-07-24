@@ -21,8 +21,8 @@
 static const char *TAG = "UART";
 
 /* VARIABLES -----------------------------------------------------------------*/
-QueueHandle_t uartRx_queue;
-QueueHandle_t uartRxStore_queue;
+static QueueHandle_t uartRx_queue;
+static QueueHandle_t uartRxStore_queue;
 QueueHandle_t uartTx_queue;
 
 uartHandler_t hUart;
@@ -65,8 +65,8 @@ void uart_config(void) {
 
   uart_buffer_init();
 
-  uartTx_queue = xQueueCreate(10, sizeof(uartHandler_t));
   uartRxStore_queue	= xQueueCreate(10, sizeof(uartHandler_t));
+  uartTx_queue = xQueueCreate(10, sizeof(uartHandler_t));
 }
 
 /**
@@ -92,39 +92,35 @@ void uart_transmission_task(void *pvParameters) {
 void uart_reception_task(void *pvParameters) {
   uartHandler_t uartHandler = {0};
 
+  uint8_t target_type = 0;
+  int16_t moving_target = 0;
+  int16_t stationary_target = 0;
+
   system_packet system_buffer = {0};
 
   system_queue = xQueueCreate(10, sizeof(system_packet));
   for(;;) {
     // Waiting for UART packet to get received.
     if(xQueueReceive(uartRxStore_queue, (void * )&uartHandler, portMAX_DELAY)) {
-      // int intra_frame_data_length = hUart.uart_rxBuffer[4] + (hUart.uart_rxBuffer[5] << 8);
       // Target Data Header
       if ((hUart.uart_rxBuffer[0] == 0xF4) && (hUart.uart_rxBuffer[1] == 0xF3) && (hUart.uart_rxBuffer[2] == 0xF2) && (hUart.uart_rxBuffer[3] == 0xF1) &&
       // Target Data End
       (hUart.uart_rxBuffer[hUart.uart_rxPacketSize-4] == 0xF8) && (hUart.uart_rxBuffer[hUart.uart_rxPacketSize-3] == 0xF7) && (hUart.uart_rxBuffer[hUart.uart_rxPacketSize-2] == 0xF6) && (hUart.uart_rxBuffer[hUart.uart_rxPacketSize-1] == 0xF5))
       {
-        if (hUart.uart_rxBuffer[6] == 0x02 && hUart.uart_rxBuffer[7] == 0xAA && hUart.uart_rxBuffer[15] == 0x55) { //&& hUart.uart_rxBuffer[16] == 0x00) { // DL 24.07.08 sometimes 0xF3 comes instead of check byte 0x00 
-          // Normal mode target data 
-          system_buffer.data[0] = hUart.uart_rxBuffer[8];                                     // Target state 
-          system_buffer.data[1] = hUart.uart_rxBuffer[9] + (hUart.uart_rxBuffer[10] << 8);    // Moving target 
-          system_buffer.data[2] = hUart.uart_rxBuffer[11];                                    // Moving target energy 
-          system_buffer.data[3] = hUart.uart_rxBuffer[12] + (hUart.uart_rxBuffer[13] << 8);   // Stationary target 
-          system_buffer.data[4] = hUart.uart_rxBuffer[14];                                    // Stationary target energy
+        // Parse target frame data
+        // ESP_LOGI(TAG, "Time Target data received: %lld us", esp_timer_get_time());
+        target_type = ld2412_parse_target_data_frame(hUart.uart_rxBuffer, (int16_t*) &moving_target, (int16_t*) &stationary_target);
+    	  if(target_type != 100) {
+          system_buffer.data[0] = target_type;                // Target state 
+          system_buffer.data[1] = moving_target;              // Moving target 
+          system_buffer.data[2] = stationary_target;          // Stationary target 
           
-          system_buffer.packet_size = 7;
+          system_buffer.packet_size = 3;
           xQueueSendToBack(system_queue, &system_buffer, portMAX_DELAY);
-
-        } else if (hUart.uart_rxBuffer[6] == 0x01 && hUart.uart_rxBuffer[7] == 0xAA) { //&& hUart.uart_rxBuffer[45] == 0x55 && hUart.uart_rxBuffer[46] == 0x00) {
-          // Engineering mode target data
-          // TO DO Parse Engineering mode target data
-
-          // system_buffer.packet_size = 47;
-          // xQueueSendToBack(system_queue, &system_buffer, portMAX_DELAY);
         }
-      } else 
+      }  
       // Command Data Header
-      if ((hUart.uart_rxBuffer[0] == 0xFD) && (hUart.uart_rxBuffer[1] == 0xFC) && (hUart.uart_rxBuffer[2] == 0xFB) && (hUart.uart_rxBuffer[3] == 0xFA) &&
+      else if ((hUart.uart_rxBuffer[0] == 0xFD) && (hUart.uart_rxBuffer[1] == 0xFC) && (hUart.uart_rxBuffer[2] == 0xFB) && (hUart.uart_rxBuffer[3] == 0xFA) &&
       // Comamnd Data End
       (hUart.uart_rxBuffer[hUart.uart_rxPacketSize-4] == 0x04) && (hUart.uart_rxBuffer[hUart.uart_rxPacketSize-3] == 0x03) && (hUart.uart_rxBuffer[hUart.uart_rxPacketSize-2] == 0x02) && (hUart.uart_rxBuffer[hUart.uart_rxPacketSize-1] == 0x01))
       {
@@ -156,9 +152,9 @@ void uart_event_task(void *pvParameters) {
       other types of events. If we take too much time on data event, the queue might
       be full.*/
       case UART_DATA:
+        ESP_LOGI(TAG, "[UART DATA]: %d", event.size);
         uart_read_bytes(UART_PORT_NUMBER, hUart.uart_rxBuffer, event.size, portMAX_DELAY);
-
-        ESP_LOGI(TAG, "Event size: '%d'", event.size);
+        ESP_LOGI(TAG, "CHECK BYTE 17th: %d", hUart.uart_rxBuffer[16]);
         hUart.uart_rxPacketSize = event.size;
         hUart.uart_status.flags.rxPacket = 1;
 

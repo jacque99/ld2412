@@ -34,7 +34,7 @@
 #define TX_BUF_SIZE                     1024
 #define RX_BUF_SIZE                     1024
 
-#define SYSTEM_BUFFER_SIZE				5
+#define SYSTEM_BUFFER_SIZE				3
 /* PRIVATE STRUCTRES ---------------------------------------------------------*/
 typedef struct
 {
@@ -62,7 +62,6 @@ typedef struct
 
 /* VARIABLES -----------------------------------------------------------------*/
 extern QueueHandle_t 			system_queue;
-extern QueueHandle_t 			uartRxStore_queue;
 extern QueueHandle_t 			uartTx_queue;
 
 extern uartHandler_t	 		hUart;
