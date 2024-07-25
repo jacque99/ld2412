@@ -12,7 +12,8 @@ idf.py add-dependency "jacque99/ld2412"
 ## Example
 
 To run the provided example, create it as follows:
-The LD2412 sends target distance periodically, to make it human readable display_time_task() shows one of 6 datas. 
+The LD2412 sends target distance periodically.
+The example uses BOOT button to send commands with ACK to the Radar. 
 
 ```bash
 idf.py create-project-from-example "jacque99/ld2412:ld2412-example"
