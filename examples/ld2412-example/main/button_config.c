@@ -32,7 +32,11 @@ static void button_event_cb(void *arg, void *data)
 static void button_single_click_cb(void *arg, void *data)
 {
     ESP_LOGI(TAG, "Button event %s", button_event_table[(button_event_t)data]);
-    read_firmware_version();
+    // read_firmware_version();
+
+    // Command value (2 bytes) baud rate selection index 0x0004 for 57600, 0x0005 for 115200
+    uint8_t cmd_val[2] = {0x04, 0x00};
+    set_baud_rate(cmd_val);
 }
 
 static void button_double_click_cb(void *arg, void *data)
@@ -48,9 +52,6 @@ void button_init(uint32_t button_num)
     .gpio_button_config = {
         .gpio_num = button_num,
         .active_level = BUTTON_ACTIVE_LEVEL,
-// #if CONFIG_GPIO_BUTTON_SUPPORT_POWER_SAVE
-//           .enable_power_save = true,
-// #endif
       },
   };
   button_handle_t btn = iot_button_create(&btn_cfg);

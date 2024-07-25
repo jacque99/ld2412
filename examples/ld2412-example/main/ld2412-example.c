@@ -8,7 +8,6 @@
 #include "button_config.h"
 
 static const char *TAG = "LD2412DEMO";
-uint8_t display_count = 0;
 
 /* VARIABLES -----------------------------------------------------------------*/
 QueueHandle_t system_queue;
@@ -31,13 +30,10 @@ void display_time_task(void* param)
     if(xQueueReceive(system_queue, (void * )&system_buffer, 2))
     {
       // ESP_LOGI(TAG, "Time since boot: %lld us", esp_timer_get_time());
-      display_count++;
-      if (display_count == 6) {
-        ESP_LOGI(TAG, "[Target State]: %d", system_buffer.data[0]);
-        ESP_LOGI(TAG, "[Moving Target]: %d", system_buffer.data[1]);
-        ESP_LOGI(TAG, "[Stationary Target]: %d", system_buffer.data[2]);
-        display_count = 0;
-      }
+      ESP_LOGI(TAG, "[Target State]: %d", system_buffer.data[0]);
+      ESP_LOGI(TAG, "[Moving Target]: %d", system_buffer.data[1]);
+      ESP_LOGI(TAG, "[Stationary Target]: %d", system_buffer.data[2]);
+
       // Displays received target distance data
       // display(system_buffer.data[1]);
     }

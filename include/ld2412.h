@@ -8,8 +8,10 @@
  * @file ld2412.h
  * @brief Driver for the LD2410/2412 Presense detector
  *
- * To use this driver:
+ * This driver is used to:
+ * - Receives periodic data from Radar UART using the UART event handler.
  * - Send ACK commands with send_command()
+ * - Receives ACK commands and parse data
  */
 
 #ifdef __cplusplus
@@ -20,11 +22,27 @@ extern "C" {
 #define RADAR_MAX_FRAME_LENGTH 	        51
 
 /* FUNCTIONS DECLARATION -----------------------------------------------------*/
+/**
+ * @brief Send command to Radar
+ * This function constructs data frame including the header and end, and sends to the TX queue.
+ * @param command_str Command string
+ * @param command_value Command value
+ * @param command_val_len Command value's length
+ *
+ */
 void send_command(uint8_t *command_str, uint8_t *command_val, int command_val_len);
+
+/**
+ * @brief Enable/Close configuation mode
+ *
+ * @param enable 
+ *
+ */
 void control_config_mode(bool enable);
+
 /**
  * @brief Enable/Close engineering mode command
- *
+ *        Current implementation toggles engineering mode 
  * @param void
  *
  */
@@ -41,10 +59,12 @@ void read_firmware_version(void);
 /**
  * @brief Set the serial port baud rate
  *
- * @param void
+ * @param command_val The command value to set baud rate
  *
  */
-void set_baud_rate(void);
+void set_baud_rate(uint8_t *command_val);
+
+void restart_module(void);
 
 /**
  * @brief Parse Target data frame received from Radar and return the target distance
